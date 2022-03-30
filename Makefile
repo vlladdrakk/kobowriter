@@ -8,7 +8,7 @@ docker_build:
 	docker build . -t kobo-builder
 
 docker:
-	docker run --rm -v ${PWD}:/home/ubuntu/app kobo-builder bash -c "cd /home/ubuntu/app && go get && make"
+	docker run --rm -v ${PWD}:/home/ubuntu/app -v ${PWD}/tmp/go:/opt/go kobo-builder bash -c "cd /home/ubuntu/app && go get && make"
 
-docker_run:
-	docker run --rm -v ${PWD}:/home/ubuntu/app kobo-builder bash -c "cd /home/ubuntu/app && exec $@"
+docker_bash:
+	docker run --rm -it -v ${PWD}:/home/ubuntu/app -v ${PWD}/tmp/go:/opt/go kobo-builder bash -c "cd /home/ubuntu/app && bash"
