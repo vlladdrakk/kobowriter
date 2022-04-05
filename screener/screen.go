@@ -194,3 +194,7 @@ func (s *Screen) RefreshFlash() {
 func (s *Screen) GetOriginalMatrix() matrix.Matrix {
 	return matrix.CopyMatrix(s.originalMatrix)
 }
+
+func (s *Screen) GetPresentMatrix() matrix.Matrix {
+	return matrix.CopyMatrix(s.presentMatrix)
+}

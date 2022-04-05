@@ -75,6 +75,12 @@ func MainMenu(screen *screener.Screen, bus EventBus.Bus, saveLocation string) fu
 			},
 		},
 		{
+			label: "Apps",
+			action: func() {
+				bus.Publish("ROUTING", "app-menu")
+			},
+		},
+		{
 			label: "Export as QR code",
 			action: func() {
 				bus.Publish("ROUTING", "qr")
@@ -301,4 +307,17 @@ func FontMenu(screen *screener.Screen, bus EventBus.Bus, saveLocation string) fu
 	}
 
 	return createMenu("Select Language", options)(screen, bus)
+}
+
+func AppMenu(screen *screener.Screen, bus EventBus.Bus, saveLocation string) func() {
+	options := []Option{
+		{
+			label: "Gemini Browser",
+			action: func() {
+				bus.Publish("ROUTING", "gemini")
+			},
+		},
+	}
+
+	return createMenu("Apps", options)(screen, bus)
 }

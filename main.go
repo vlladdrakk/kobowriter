@@ -2,7 +2,9 @@ package main
 
 import (
 	"fmt"
+	"os"
 	"os/exec"
+	"os/signal"
 
 	"github.com/asaskevich/EventBus"
 
@@ -39,6 +41,17 @@ func main() {
 	c := make(chan bool)
 	defer close(c)
 
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, os.Interrupt)
+
+	go func() {
+		for _ = range sigChan {
+			// sig is a ^C, handle it
+			screen.ClearFlash()
+			c <- true
+		}
+	}()
+
 	bus.SubscribeAsync("REQUIRE_KEYBOARD", func() {
 		config := utils.LoadConfig(saveLocation)
 		findKeyboard(screen, bus, config.KeyboardLang)
@@ -72,6 +85,10 @@ func main() {
 			unmount = views.LanguageMenu(screen, bus, saveLocation)
 		case "font-menu":
 			unmount = views.FontMenu(screen, bus, saveLocation)
+		case "app-menu":
+			unmount = views.AppMenu(screen, bus, saveLocation)
+		case "gemini":
+			unmount = views.LaunchGemini(screen, bus, "gemini://gemini.circumlunar.space")
 		case "qr":
 			unmount = views.Qr(screen, bus, saveLocation)
 

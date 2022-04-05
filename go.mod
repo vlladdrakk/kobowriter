@@ -4,6 +4,7 @@ go 1.16
 
 require (
 	github.com/MarinX/keylogger v0.0.0-20210528193429-a54d7834cc1a
+	github.com/a-h/gemini v0.0.66
 	github.com/asaskevich/EventBus v0.0.0-20200907212545-49d423059eef
 	github.com/fogleman/gg v1.3.0
 	github.com/golang/freetype v0.0.0-20170609003504-e2365dfdc4a0 // indirect
