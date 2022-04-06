@@ -62,8 +62,8 @@ func makeRequest(url string) *gemini.Response {
 }
 
 func LaunchGemini(screen *screener.Screen, bus EventBus.Bus, url string) func() {
-	response := makeRequest(url)
-
+	var linkMap map[int]string
+	var currentUrl string = url
 	text := &TextView{
 		width:       int(screen.Width) - 4,
 		height:      int(screen.Height) - 2,
@@ -72,16 +72,41 @@ func LaunchGemini(screen *screener.Screen, bus EventBus.Bus, url string) func() 
 		cursorIndex: 0,
 	}
 
-	body, err := ioutil.ReadAll(response.Body)
-	if err != nil {
-		log.Fatalf("failed to read body: %v", err)
+	loadHandler := func(url string) {
+		response := makeRequest(url)
+		body, err := ioutil.ReadAll(response.Body)
+		if err != nil {
+			log.Fatalf("failed to read body: %v", err)
+		}
+
+		currentUrl = url
+
+		var content string
+		content, linkMap = parseGemText(string(body))
+		text.setContent(content)
+		text.setCursorIndex(0)
+
+		compiledMatrix := matrix.PasteMatrix(screen.GetOriginalMatrix(), text.renderMatrix(), 2, 1)
+		screen.Print(compiledMatrix)
 	}
 
-	fmt.Println("Body:\n", string(body))
+	linkHandler := func(link string) {
+		if strings.Contains(link, "http://") || strings.Contains(link, "https://") {
+			return
+		}
 
-	text.setContent(string(body))
-	text.setCursorIndex(0)
+		if strings.Contains(link, "gemini://") {
+			bus.Publish("GEMINI:load", link)
+		}
 
+		if !strings.Contains(link, "://") {
+			bus.Publish("GEMINI:load", currentUrl+"/"+link)
+		}
+	}
+
+	bus.SubscribeAsync("GEMINI:load", loadHandler, false)
+	bus.SubscribeAsync("GEMINI:handleLink", linkHandler, false)
+	bus.Publish("GEMINI:load", url)
 	stalledForInput := false
 
 	onEvent := func(e event.KeyEvent) {
@@ -114,23 +139,21 @@ func LaunchGemini(screen *screener.Screen, bus EventBus.Bus, url string) func() 
 			})
 		case "KEY_ESC":
 			bus.Publish("ROUTING", "menu")
+		case "KEY_ENTER":
+			lineNumber := text.cursorPos.y
+			fmt.Println("line number:", lineNumber, linkMap[lineNumber])
+			if _, ok := linkMap[lineNumber]; ok {
+				bus.Publish("GEMINI:handleLink", linkMap[lineNumber])
+			}
 		case "g":
 			stalledForInput = true
 			goToUrl := getInput(screen, bus, "Go to url:")
 			stalledForInput = false
 
-			response = makeRequest(goToUrl)
-			body, err = ioutil.ReadAll(response.Body)
-			if err != nil {
-				log.Fatalf("failed to read body: %v", err)
-			}
-
-			text.setContent(string(body))
-			text.setCursorIndex(0)
+			bus.Publish("GEMINI:load", goToUrl)
 		}
 
 		compiledMatrix := matrix.PasteMatrix(screen.GetOriginalMatrix(), text.renderMatrix(), 2, 1)
-		fmt.Println("Printing from main thread(?)")
 		screen.Print(compiledMatrix)
 	}
 
@@ -201,4 +224,24 @@ func getInput(s *screener.Screen, bus EventBus.Bus, prompt string) string {
 	bus.Unsubscribe("KEY", onKey)
 
 	return result
+}
+
+func parseGemText(body string) (string, map[int]string) {
+	linkMap := make(map[int]string)
+	var parsedBody string
+
+	for i, line := range strings.Split(body, "\n") {
+		if len(line) < 3 || line[0:2] != "=>" {
+			parsedBody = parsedBody + line + "\n"
+			continue
+		}
+
+		parts := strings.Fields(line)
+		linkText := strings.Join(parts[2:], " ")
+		linkMap[i] = strings.Clone(parts[1])
+
+		parsedBody = parsedBody + "=> " + linkText + "\n"
+	}
+
+	return parsedBody, linkMap
 }
