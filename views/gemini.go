@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
+	"sort"
 	"strings"
 
 	"github.com/a-h/gemini"
@@ -14,6 +15,11 @@ import (
 	"github.com/olup/kobowriter/screener"
 	"github.com/olup/kobowriter/utils"
 )
+
+type HistoryItem struct {
+	url      string
+	position Position
+}
 
 func parseDomain(url string) string {
 	domain := strings.Replace(url, "gemini://", "", 1)
@@ -49,7 +55,7 @@ func makeRequest(url string) *gemini.Response {
 	}
 
 	if err != nil {
-		fmt.Println("Request failed: %v", err)
+		fmt.Println("Request failed:", err)
 	}
 
 	// Follow redirects
@@ -64,6 +70,7 @@ func makeRequest(url string) *gemini.Response {
 func LaunchGemini(screen *screener.Screen, bus EventBus.Bus, url string) func() {
 	var linkMap map[int]string
 	var currentUrl string = url
+	var history []HistoryItem
 	text := &TextView{
 		width:       int(screen.Width) - 4,
 		height:      int(screen.Height) - 2,
@@ -72,7 +79,7 @@ func LaunchGemini(screen *screener.Screen, bus EventBus.Bus, url string) func() 
 		cursorIndex: 0,
 	}
 
-	loadHandler := func(url string) {
+	loadHandler := func(url string, pos int) {
 		response := makeRequest(url)
 		body, err := ioutil.ReadAll(response.Body)
 		if err != nil {
@@ -82,10 +89,11 @@ func LaunchGemini(screen *screener.Screen, bus EventBus.Bus, url string) func() 
 		currentUrl = url
 
 		var content string
-		content, linkMap = parseGemText(string(body))
+		content, linkMap = parseGemText(string(body), text.width)
 		text.setContent(content)
 		text.setCursorIndex(0)
 
+		text.setCursorPos(Position{x: 0, y: pos})
 		compiledMatrix := matrix.PasteMatrix(screen.GetOriginalMatrix(), text.renderMatrix(), 2, 1)
 		screen.Print(compiledMatrix)
 	}
@@ -96,17 +104,19 @@ func LaunchGemini(screen *screener.Screen, bus EventBus.Bus, url string) func() 
 		}
 
 		if strings.Contains(link, "gemini://") {
-			bus.Publish("GEMINI:load", link)
+			history = append(history, HistoryItem{url: currentUrl, position: text.cursorPos})
+			bus.Publish("GEMINI:load", link, 0)
 		}
 
 		if !strings.Contains(link, "://") {
-			bus.Publish("GEMINI:load", currentUrl+"/"+link)
+			history = append(history, HistoryItem{url: currentUrl, position: text.cursorPos})
+			bus.Publish("GEMINI:load", currentUrl+"/"+link, 0)
 		}
 	}
 
 	bus.SubscribeAsync("GEMINI:load", loadHandler, false)
 	bus.SubscribeAsync("GEMINI:handleLink", linkHandler, false)
-	bus.Publish("GEMINI:load", url)
+	bus.Publish("GEMINI:load", url, 0)
 	stalledForInput := false
 
 	onEvent := func(e event.KeyEvent) {
@@ -145,12 +155,36 @@ func LaunchGemini(screen *screener.Screen, bus EventBus.Bus, url string) func() 
 			if _, ok := linkMap[lineNumber]; ok {
 				bus.Publish("GEMINI:handleLink", linkMap[lineNumber])
 			}
+		case "KEY_F12":
+			screen.ClearFlash()
+		case "KEY_TAB":
+			lineNumber := text.cursorPos.y
+			keys := make([]int, 0, len(linkMap))
+			for k := range linkMap {
+				keys = append(keys, k)
+			}
+
+			sort.Ints(keys)
+			for _, k := range keys {
+				if k > lineNumber && linkMap[k] != linkMap[lineNumber] {
+					text.setCursorPos(Position{
+						x: text.cursorPos.x,
+						y: k,
+					})
+					break
+				}
+			}
 		case "g":
 			stalledForInput = true
 			goToUrl := getInput(screen, bus, "Go to url:")
 			stalledForInput = false
 
-			bus.Publish("GEMINI:load", goToUrl)
+			bus.Publish("GEMINI:load", goToUrl, 0)
+		case "u":
+			// Pop the last url off the stack
+			var lastUrl HistoryItem
+			lastUrl, history = history[len(history)-1], history[:len(history)-1]
+			bus.Publish("GEMINI:load", lastUrl.url, lastUrl.position.y)
 		}
 
 		compiledMatrix := matrix.PasteMatrix(screen.GetOriginalMatrix(), text.renderMatrix(), 2, 1)
@@ -226,21 +260,27 @@ func getInput(s *screener.Screen, bus EventBus.Bus, prompt string) string {
 	return result
 }
 
-func parseGemText(body string) (string, map[int]string) {
+func parseGemText(body string, width int) (string, map[int]string) {
 	linkMap := make(map[int]string)
 	var parsedBody string
+	lineNum := 0
 
-	for i, line := range strings.Split(body, "\n") {
+	for _, line := range strings.Split(body, "\n") {
 		if len(line) < 3 || line[0:2] != "=>" {
 			parsedBody = parsedBody + line + "\n"
+			lineNum++
 			continue
 		}
 
 		parts := strings.Fields(line)
 		linkText := strings.Join(parts[2:], " ")
-		linkMap[i] = strings.Clone(parts[1])
+		newLine := utils.WrapLine("=> "+linkText+"\n", width)
 
-		parsedBody = parsedBody + "=> " + linkText + "\n"
+		for _, l := range strings.Split(newLine, "\n") {
+			parsedBody = parsedBody + l + "\n"
+			linkMap[lineNum] = strings.Clone(parts[1])
+			lineNum++
+		}
 	}
 
 	return parsedBody, linkMap
