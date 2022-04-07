@@ -23,10 +23,26 @@ type HistoryItem struct {
 }
 
 type Page struct {
-	url     string
-	body    string
-	linkMap map[int]string
-	exp     time.Time
+	url      string
+	body     string
+	linkMap  map[int]string
+	exp      time.Time
+	position Position
+}
+
+type bookmark struct {
+	url  string
+	name string
+}
+
+type GemState struct {
+	cache       map[string]Page
+	currentPage Page
+	history     []HistoryItem
+	future      []HistoryItem
+	bookmarks   []bookmark
+	bus         EventBus.Bus
+	screenWidth int
 }
 
 func parseDomain(url string) string {
@@ -75,11 +91,115 @@ func makeRequest(url string) *gemini.Response {
 	return r
 }
 
+func (s *GemState) PushHistory(p Page) {
+	item := HistoryItem{
+		url:      p.url,
+		position: p.position,
+	}
+
+	s.history = append(s.history, item)
+}
+
+func (s *GemState) PushFuture(p Page) {
+	item := HistoryItem{
+		url:      p.url,
+		position: p.position,
+	}
+
+	s.future = append(s.future, item)
+}
+
+func (s *GemState) PopHistory() HistoryItem {
+	// Pop the last url off the stack
+	if len(s.history) > 0 {
+		var item HistoryItem
+		item, s.history = s.history[len(s.history)-1], s.history[:len(s.history)-1]
+
+		return item
+	} else {
+		return HistoryItem{}
+	}
+}
+
+func (s *GemState) PopFuture() HistoryItem {
+	// Pop the last url off the stack
+	if len(s.future) > 0 {
+		var item HistoryItem
+		item, s.future = s.future[len(s.future)-1], s.future[:len(s.future)-1]
+
+		return item
+	} else {
+		return HistoryItem{}
+	}
+}
+
+// Checks cache and loads the currentPage, renders to the screen
+func (s *GemState) LoadPage(url string) {
+	var p Page
+	cachedPage, isCached := s.cache[url]
+
+	if isCached && cachedPage.exp.After(time.Now()) {
+		p = cachedPage
+	} else {
+		p = s.LoadUrl(url)
+		// Cache the page
+		s.cache[url] = p
+	}
+
+	s.currentPage = p
+
+	s.bus.Publish("GEMINI:render")
+}
+
+// No cache check, just loads a URL and returns a Page struct
+func (s *GemState) LoadUrl(url string) Page {
+	response := makeRequest(url)
+	body, err := ioutil.ReadAll(response.Body)
+	if err != nil {
+		log.Fatalf("failed to read body: %v", err)
+	}
+
+	content, linkMap := parseGemText(string(body), s.screenWidth)
+	return Page{
+		body:    content,
+		url:     url,
+		exp:     time.Now().Add(5 * time.Minute),
+		linkMap: linkMap,
+	}
+}
+
+func (s *GemState) GoBack() {
+	s.PushFuture(s.currentPage)
+	item := s.PopHistory()
+
+	s.LoadPage(item.url)
+	s.SetCursor(item.position)
+}
+
+func (s *GemState) GoForward() {
+	s.PushHistory(s.currentPage)
+	item := s.PopFuture()
+
+	s.LoadPage(item.url)
+	s.SetCursor(item.position)
+}
+
+func (s *GemState) SetCursor(p Position) {
+	s.currentPage.position = p
+
+	s.bus.Publish("GEMINI:update_cursor")
+}
+
 func LaunchGemini(screen *screener.Screen, bus EventBus.Bus, url string) func() {
-	var linkMap map[int]string
-	var currentUrl string = url
-	var history []HistoryItem
-	pageCache := make(map[string]Page)
+	state := GemState{
+		currentPage: Page{
+			url:     strings.Clone(url),
+			linkMap: make(map[int]string),
+		},
+		cache:       make(map[string]Page),
+		bus:         bus,
+		screenWidth: int(screen.Width) - 2,
+	}
 
 	text := &TextView{
 		width:       int(screen.Width) - 4,
@@ -89,56 +209,45 @@ func LaunchGemini(screen *screener.Screen, bus EventBus.Bus, url string) func() 
 		cursorIndex: 0,
 	}
 
-	loadHandler := func(url string, pos int) {
-		var content string
-		currentUrl = url
-
-		if page, ok := pageCache[url]; ok && page.exp.After(time.Now()) {
-			content = strings.Clone(page.body)
-			linkMap = page.linkMap
-		} else {
-			response := makeRequest(url)
-			body, err := ioutil.ReadAll(response.Body)
-			if err != nil {
-				log.Fatalf("failed to read body: %v", err)
-			}
-
-			content, linkMap = parseGemText(string(body), text.width)
-			pageCache[url] = Page{
-				body:    content,
-				url:     url,
-				exp:     time.Now().Add(5 * time.Minute),
-				linkMap: linkMap,
-			}
-		}
-
-		text.setContent(content)
-		text.setCursorIndex(0)
-
-		text.setCursorPos(Position{x: 0, y: pos})
-		compiledMatrix := matrix.PasteMatrix(screen.GetOriginalMatrix(), text.renderMatrix(), 2, 1)
-		screen.Print(compiledMatrix)
-	}
-
 	linkHandler := func(link string) {
 		if strings.Contains(link, "http://") || strings.Contains(link, "https://") {
 			return
 		}
 
 		if strings.Contains(link, "gemini://") {
-			history = append(history, HistoryItem{url: currentUrl, position: text.cursorPos})
+			state.PushHistory(state.currentPage)
+
 			bus.Publish("GEMINI:load", link, 0)
+			state.LoadPage(link)
 		}
 
 		if !strings.Contains(link, "://") {
-			history = append(history, HistoryItem{url: currentUrl, position: text.cursorPos})
-			bus.Publish("GEMINI:load", currentUrl+"/"+link, 0)
+			state.PushHistory(state.currentPage)
+
+			state.LoadPage(state.currentPage.url + "/" + link)
 		}
 	}
 
-	bus.SubscribeAsync("GEMINI:load", loadHandler, false)
 	bus.SubscribeAsync("GEMINI:handleLink", linkHandler, false)
-	bus.Publish("GEMINI:load", url, 0)
+
+	updateCursor := func() {
+		text.setCursorPos(state.currentPage.position)
+	}
+
+	bus.SubscribeAsync("GEMINI:update_cursor", updateCursor, false)
+
+	render := func() {
+		text.setContent(state.currentPage.body)
+		text.setCursorIndex(0)
+
+		text.setCursorPos(state.currentPage.position)
+		compiledMatrix := matrix.PasteMatrix(screen.GetOriginalMatrix(), text.renderMatrix(), 2, 1)
+		screen.Print(compiledMatrix)
+	}
+
+	bus.SubscribeAsync("GEMINI:render", render, false)
+
+	bus.Publish("GEMINI:handleLink", url)
 	stalledForInput := false
 
 	onEvent := func(e event.KeyEvent) {
@@ -152,9 +261,6 @@ func LaunchGemini(screen *screener.Screen, bus EventBus.Bus, url string) func() 
 
 		// if is modifier key
 		switch e.KeyValue {
-		// case "KEY_ENTER":
-		// text.setContent(utils.InsertAt(text.content, "\n", text.cursorIndex))
-		// text.setCursorIndex(text.cursorIndex + 1)
 		case "KEY_RIGHT":
 			text.setCursorIndex(text.cursorIndex + 1)
 		case "KEY_LEFT":
@@ -172,6 +278,7 @@ func LaunchGemini(screen *screener.Screen, bus EventBus.Bus, url string) func() 
 		case "KEY_ESC":
 			bus.Publish("ROUTING", "menu")
 		case "KEY_ENTER":
+			linkMap := state.currentPage.linkMap
 			lineNumber := text.cursorPos.y
 			fmt.Println("line number:", lineNumber, linkMap[lineNumber])
 			if _, ok := linkMap[lineNumber]; ok {
@@ -180,6 +287,7 @@ func LaunchGemini(screen *screener.Screen, bus EventBus.Bus, url string) func() 
 		case "KEY_F12":
 			screen.ClearFlash()
 		case "KEY_TAB":
+			linkMap := state.currentPage.linkMap
 			lineNumber := text.cursorPos.y
 			keys := make([]int, 0, len(linkMap))
 			for k := range linkMap {
@@ -201,14 +309,11 @@ func LaunchGemini(screen *screener.Screen, bus EventBus.Bus, url string) func() 
 			goToUrl := getInput(screen, bus, "Go to url:")
 			stalledForInput = false
 
-			bus.Publish("GEMINI:load", goToUrl, 0)
+			bus.Publish("GEMINI:handleLink", goToUrl)
 		case "u":
-			if len(history) > 0 {
-				// Pop the last url off the stack
-				var lastUrl HistoryItem
-				lastUrl, history = history[len(history)-1], history[:len(history)-1]
-				bus.Publish("GEMINI:load", lastUrl.url, lastUrl.position.y)
-			}
+			state.GoBack()
+		case "f":
+			state.GoForward()
 		}
 
 		compiledMatrix := matrix.PasteMatrix(screen.GetOriginalMatrix(), text.renderMatrix(), 2, 1)
