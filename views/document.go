@@ -60,13 +60,13 @@ func Document(screen *screener.Screen, bus EventBus.Bus, documentPath string) fu
 				text.setCursorIndex(text.cursorIndex - 1)
 			case "KEY_DOWN":
 				text.setCursorPos(Position{
-					x: text.cursorPos.x,
-					y: text.cursorPos.y + linesToMove,
+					X: text.cursorPos.X,
+					Y: text.cursorPos.Y + linesToMove,
 				})
 			case "KEY_UP":
 				text.setCursorPos(Position{
-					x: text.cursorPos.x,
-					y: text.cursorPos.y - linesToMove,
+					X: text.cursorPos.X,
+					Y: text.cursorPos.Y - linesToMove,
 				})
 			case "KEY_ESC":
 				bus.Publish("ROUTING", "menu")

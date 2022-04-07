@@ -19,10 +19,7 @@ type TextView struct {
 	scroll      int
 }
 
-type Position struct {
-	x int
-	y int
-}
+type Position = utils.Position
 
 func (t *TextView) init(width int) {
 	t.width = width
@@ -77,31 +74,31 @@ func (t *TextView) setCursorIndex(index int) {
 
 func (t *TextView) setCursorPos(position Position) {
 	// Bounds
-	if position.y < 0 {
-		position.y = 0
+	if position.Y < 0 {
+		position.Y = 0
 	}
 
-	if position.x < 0 {
-		position.x = 0
+	if position.X < 0 {
+		position.X = 0
 	}
 
-	if position.y > len(t.lineCount)-1 {
-		position.y = len(t.lineCount) - 1
+	if position.Y > len(t.lineCount)-1 {
+		position.Y = len(t.lineCount) - 1
 	}
 
-	if t.lineCount[position.y]-1 < position.x {
-		position.x = t.lineCount[position.y] - 1
+	if t.lineCount[position.Y]-1 < position.X {
+		position.X = t.lineCount[position.Y] - 1
 	}
 
 	// Procesing
 
 	agg := 0
 
-	for i := 0; i < position.y; i++ {
+	for i := 0; i < position.Y; i++ {
 		agg += t.lineCount[i]
 	}
 
-	agg += position.x
+	agg += position.X
 
 	t.cursorPos = position
 	t.cursorIndex = agg
@@ -111,8 +108,8 @@ func (t *TextView) setCursorPos(position Position) {
 
 func (t *TextView) renderMatrix() matrix.Matrix {
 	textMatrix := matrix.CreateMatrixFromText(t.content, t.width)
-	if t.cursorPos.x >= 0 && t.cursorPos.y >= 0 && t.cursorPos.x < t.width {
-		textMatrix[t.cursorPos.y][t.cursorPos.x].IsInverted = true
+	if t.cursorPos.X >= 0 && t.cursorPos.Y >= 0 && t.cursorPos.X < t.width {
+		textMatrix[t.cursorPos.Y][t.cursorPos.X].IsInverted = true
 	}
 	endBound := t.scroll + t.height
 	if endBound > len(textMatrix) {
@@ -123,7 +120,7 @@ func (t *TextView) renderMatrix() matrix.Matrix {
 }
 
 func (t *TextView) updateScroll() {
-	y := t.cursorPos.y
+	y := t.cursorPos.Y
 
 	if y > t.scroll+t.height-1 {
 		t.scroll = y - 5
