@@ -7,6 +7,7 @@ import (
 	"log"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/a-h/gemini"
 	"github.com/asaskevich/EventBus"
@@ -19,6 +20,13 @@ import (
 type HistoryItem struct {
 	url      string
 	position Position
+}
+
+type Page struct {
+	url     string
+	body    string
+	linkMap map[int]string
+	exp     time.Time
 }
 
 func parseDomain(url string) string {
@@ -71,6 +79,8 @@ func LaunchGemini(screen *screener.Screen, bus EventBus.Bus, url string) func() 
 	var linkMap map[int]string
 	var currentUrl string = url
 	var history []HistoryItem
+	pageCache := make(map[string]Page)
+
 	text := &TextView{
 		width:       int(screen.Width) - 4,
 		height:      int(screen.Height) - 2,
@@ -80,16 +90,28 @@ func LaunchGemini(screen *screener.Screen, bus EventBus.Bus, url string) func() 
 	}
 
 	loadHandler := func(url string, pos int) {
-		response := makeRequest(url)
-		body, err := ioutil.ReadAll(response.Body)
-		if err != nil {
-			log.Fatalf("failed to read body: %v", err)
-		}
-
+		var content string
 		currentUrl = url
 
-		var content string
-		content, linkMap = parseGemText(string(body), text.width)
+		if page, ok := pageCache[url]; ok && page.exp.After(time.Now()) {
+			content = strings.Clone(page.body)
+			linkMap = page.linkMap
+		} else {
+			response := makeRequest(url)
+			body, err := ioutil.ReadAll(response.Body)
+			if err != nil {
+				log.Fatalf("failed to read body: %v", err)
+			}
+
+			content, linkMap = parseGemText(string(body), text.width)
+			pageCache[url] = Page{
+				body:    content,
+				url:     url,
+				exp:     time.Now().Add(5 * time.Minute),
+				linkMap: linkMap,
+			}
+		}
+
 		text.setContent(content)
 		text.setCursorIndex(0)
 
@@ -181,10 +203,12 @@ func LaunchGemini(screen *screener.Screen, bus EventBus.Bus, url string) func() 
 
 			bus.Publish("GEMINI:load", goToUrl, 0)
 		case "u":
-			// Pop the last url off the stack
-			var lastUrl HistoryItem
-			lastUrl, history = history[len(history)-1], history[:len(history)-1]
-			bus.Publish("GEMINI:load", lastUrl.url, lastUrl.position.y)
+			if len(history) > 0 {
+				// Pop the last url off the stack
+				var lastUrl HistoryItem
+				lastUrl, history = history[len(history)-1], history[:len(history)-1]
+				bus.Publish("GEMINI:load", lastUrl.url, lastUrl.position.y)
+			}
 		}
 
 		compiledMatrix := matrix.PasteMatrix(screen.GetOriginalMatrix(), text.renderMatrix(), 2, 1)
