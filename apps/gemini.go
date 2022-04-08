@@ -195,8 +195,9 @@ func parseGemText(body string, width int) (string, map[int]string) {
 
 	for _, line := range strings.Split(body, "\n") {
 		if len(line) < 3 || line[0:2] != "=>" {
-			parsedBody = parsedBody + line + "\n"
-			lineNum++
+			wrappedLines := utils.WrapLine(line, width)
+			parsedBody = parsedBody + wrappedLines + "\n"
+			lineNum += len(strings.Split(wrappedLines, "\n")) + 1
 			continue
 		}
 
