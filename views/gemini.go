@@ -10,7 +10,7 @@ import (
 	"github.com/olup/kobowriter/event"
 	"github.com/olup/kobowriter/matrix"
 	"github.com/olup/kobowriter/screener"
-	"github.com/olup/kobowriter/utils"
+	"github.com/olup/kobowriter/ui"
 )
 
 func LaunchGemini(screen *screener.Screen, bus EventBus.Bus, url string) func() {
@@ -129,14 +129,29 @@ func LaunchGemini(screen *screener.Screen, bus EventBus.Bus, url string) func() 
 			}
 		case "g":
 			stalledForInput = true
-			goToUrl := getInput(screen, bus, "Go to url:")
+			goToUrl := ui.PromptForInput(screen, bus, "Go to url:")
 			stalledForInput = false
-
+			fmt.Println("goto", goToUrl)
+			if !strings.Contains(goToUrl, "gemini://") {
+				goToUrl = "gemini://" + goToUrl
+			}
 			bus.Publish("GEMINI:handleLink", goToUrl)
 		case "u":
 			app.GoBack()
 		case "f":
 			app.GoForward()
+		case "a":
+			stalledForInput = true
+			bookmarkName := ui.PromptForInput(screen, bus, "Name for the bookmark")
+			stalledForInput = false
+			app.BookmarkCurrent(bookmarkName)
+		case "b":
+			stalledForInput = true
+			bookmarks := app.GetBookmarkOptions()
+			fmt.Println("bookmark count", len(bookmarks))
+			selectedBookmark := ui.MultiSelect(screen, bus, "Bookmarks", bookmarks)
+			fmt.Println("selected", selectedBookmark)
+			stalledForInput = false
 		}
 
 		compiledMatrix := matrix.PasteMatrix(screen.GetOriginalMatrix(), text.renderMatrix(), 2, 1)
@@ -151,63 +166,4 @@ func LaunchGemini(screen *screener.Screen, bus EventBus.Bus, url string) func() 
 	return func() {
 		bus.Unsubscribe("KEY", onEvent)
 	}
-}
-
-func getInput(s *screener.Screen, bus EventBus.Bus, prompt string) string {
-	writePrompt := func(input string) {
-		// Set base layer
-		m := s.GetOriginalMatrix()
-		// Add the current input to the matrix
-		if input != "" {
-			m = matrix.PasteMatrix(
-				m,
-				matrix.CreateMatrixFromText(input, utils.LenString(input)),
-				15,
-				4,
-			)
-		}
-		// Add the prompt message
-		topMatrix := matrix.CreateMatrixFromText(prompt+"\n"+strings.Repeat("=", utils.LenString(prompt)), utils.LenString(prompt))
-		// merge the base and top matrices
-		m = matrix.PasteMatrix(m, topMatrix, 4, 4)
-
-		s.Print(m)
-	}
-
-	var result string
-	c := make(chan bool)
-	defer close(c)
-
-	writePrompt("")
-
-	onKey := func(e event.KeyEvent) {
-		if e.IsChar {
-			result = result + e.KeyChar
-		} else {
-			switch e.KeyValue {
-			case "KEY_ENTER":
-				fmt.Println("Done inputting")
-				c <- true
-			case "KEY_BACKSPACE":
-				result = result[:len(result)-1]
-			}
-		}
-
-		writePrompt(result)
-	}
-
-	bus.SubscribeAsync("KEY", onKey, false)
-
-	// display
-	bus.Publish("KEY", event.KeyEvent{})
-
-	for done := range c {
-		if done {
-			break
-		}
-	}
-
-	bus.Unsubscribe("KEY", onKey)
-
-	return result
 }

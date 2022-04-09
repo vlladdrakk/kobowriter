@@ -10,6 +10,7 @@ import (
 
 	"github.com/a-h/gemini"
 	"github.com/asaskevich/EventBus"
+	"github.com/olup/kobowriter/ui"
 	"github.com/olup/kobowriter/utils"
 )
 
@@ -186,6 +187,25 @@ func (s *GeminiBrowser) SetCursor(p Position) {
 	s.CurrentPage.Position = p
 
 	s.Bus.Publish("GEMINI:update_cursor")
+}
+
+func (s *GeminiBrowser) BookmarkCurrent(name string) {
+	s.Bookmarks = append(s.Bookmarks, bookmark{
+		url:  s.CurrentPage.Url,
+		name: name,
+	})
+}
+
+func (s *GeminiBrowser) GetBookmarkOptions() []ui.SelectOption {
+	var bookmarkOptions []ui.SelectOption
+	for _, b := range s.Bookmarks {
+		bookmarkOptions = append(bookmarkOptions, ui.SelectOption{
+			Label: b.name,
+			Value: b.url,
+		})
+	}
+
+	return bookmarkOptions
 }
 
 func parseGemText(body string, width int) (string, map[int]string) {
