@@ -16,18 +16,50 @@ type SelectOption struct {
 	Value string
 }
 
+var promptWidth int = 40
+
 func PromptForInput(s *screener.Screen, bus EventBus.Bus, prompt string) string {
 	cursorPos := 0
-	writePrompt := func(input string) {
+	writePrompt := func(input string, prevWindowStart int) int {
+		inputWindow := strings.Clone(input)
+		isScrollable := len(input) > (promptWidth - 4)
+		windowStart := 0
+
+		if isScrollable {
+			if prevWindowStart <= cursorPos && cursorPos <= (prevWindowStart+promptWidth-4) {
+				windowStart = prevWindowStart
+			} else {
+				// The cursor is at the end of the input, the window is at the end of the input
+				if len(input) == cursorPos {
+					windowStart = len(input) - (promptWidth - 4)
+				}
+
+				// If the cursor is not within the last len(window) then shift the window to include the cursor
+				if cursorPos < len(input)-(promptWidth-4) {
+					windowStart = cursorPos
+				}
+			}
+
+			inputWindow = input[windowStart:(windowStart + (promptWidth - 4))]
+		}
+
+		whitespacePaddingLen := (promptWidth - 3) - len(inputWindow)
+
+		if whitespacePaddingLen < 0 {
+			whitespacePaddingLen = 0
+		}
 		// Set base layer
 		m := s.GetOriginalMatrix()
 		// Add the current input to the matrix
 		m = matrix.PasteMatrix(
 			m,
-			matrix.CreateMatrixFromText(strings.Repeat("*", 40)+"\n* "+input+strings.Repeat(" ", 37-len(input))+"*\n"+strings.Repeat("*", 40), s.Width),
+			matrix.CreateMatrixFromText(strings.Repeat("*", promptWidth)+"\n* "+inputWindow+strings.Repeat(" ", whitespacePaddingLen)+"*\n"+strings.Repeat("*", promptWidth), s.Width),
 			2,
 			5,
 		)
+
+		// Find the position of the cursor inside the input window
+		relativeCursor := cursorPos - windowStart
 
 		// Add cursor
 		m = matrix.PasteMatrix(
@@ -35,7 +67,7 @@ func PromptForInput(s *screener.Screen, bus EventBus.Bus, prompt string) string 
 			matrix.InverseMatrix(
 				matrix.CreateMatrixFromText(" ", 1),
 			),
-			4+cursorPos,
+			4+relativeCursor,
 			6,
 		)
 
@@ -45,13 +77,16 @@ func PromptForInput(s *screener.Screen, bus EventBus.Bus, prompt string) string 
 		m = matrix.PasteMatrix(m, topMatrix, 2, 4)
 
 		s.Print(m)
+
+		return windowStart
 	}
 
 	var result string
 	c := make(chan bool)
 	defer close(c)
 
-	writePrompt("")
+	windowStart := 0
+	writePrompt("", windowStart)
 
 	onKey := func(e event.KeyEvent) {
 		if e.IsChar {
@@ -91,7 +126,7 @@ func PromptForInput(s *screener.Screen, bus EventBus.Bus, prompt string) string 
 			}
 		}
 
-		writePrompt(result)
+		windowStart = writePrompt(result, windowStart)
 	}
 
 	bus.SubscribeAsync("KEY", onKey, false)
