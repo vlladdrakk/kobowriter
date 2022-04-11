@@ -123,6 +123,10 @@ func PromptForInput(s *screener.Screen, bus EventBus.Bus, prompt string) string 
 				if cursorPos <= len(result) {
 					cursorPos++
 				}
+			case "KEY_DOWN":
+				cursorPos = len(result)
+			case "KEY_UP":
+				cursorPos = 0
 			}
 		}
 
