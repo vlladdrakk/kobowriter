@@ -15,6 +15,7 @@ import (
 )
 
 type Position = utils.Position
+type HyperTextView = ui.HyperTextView
 
 type HistoryItem struct {
 	url      string
@@ -23,8 +24,7 @@ type HistoryItem struct {
 
 type Page struct {
 	Url      string
-	Body     string
-	LinkMap  map[int]string
+	View     HyperTextView
 	exp      time.Time
 	Position Position
 }
@@ -35,13 +35,14 @@ type bookmark struct {
 }
 
 type GeminiBrowser struct {
-	Cache       map[string]Page
-	CurrentPage Page
-	History     []HistoryItem
-	Future      []HistoryItem
-	Bookmarks   []bookmark
-	Bus         EventBus.Bus
-	ScreenWidth int
+	Cache        map[string]Page
+	CurrentPage  Page
+	History      []HistoryItem
+	Future       []HistoryItem
+	Bookmarks    []bookmark
+	Bus          EventBus.Bus
+	ScreenWidth  int
+	ScreenHeight int
 }
 
 func parseDomain(url string) string {
@@ -153,17 +154,20 @@ func (s *GeminiBrowser) LoadPage(url string) {
 // No cache check, just loads a URL and returns a Page struct
 func (s *GeminiBrowser) LoadUrl(url string) Page {
 	response := makeRequest(url)
+	fmt.Println("Loaded", url)
 	body, err := ioutil.ReadAll(response.Body)
 	if err != nil {
 		log.Fatalf("failed to read body: %v", err)
 	}
 
-	content, linkMap := parseGemText(string(body), s.ScreenWidth)
+	view := HyperTextView{}
+	view.Init(s.ScreenWidth, s.ScreenHeight)
+	view.SetContent(string(body))
+
 	return Page{
-		Body:    content,
-		Url:     url,
-		exp:     time.Now().Add(5 * time.Minute),
-		LinkMap: linkMap,
+		View: view,
+		Url:  url,
+		exp:  time.Now().Add(5 * time.Minute),
 	}
 }
 
@@ -208,29 +212,6 @@ func (s *GeminiBrowser) GetBookmarkOptions() []ui.SelectOption {
 	return bookmarkOptions
 }
 
-func parseGemText(body string, width int) (string, map[int]string) {
-	linkMap := make(map[int]string)
-	var parsedBody string
-	lineNum := 0
-
-	for _, line := range strings.Split(body, "\n") {
-		if len(line) < 3 || line[0:2] != "=>" {
-			wrappedLines := utils.WrapLine(line, width)
-			parsedBody = parsedBody + wrappedLines + "\n"
-			lineNum += len(strings.Split(wrappedLines, "\n")) + 1
-			continue
-		}
-
-		parts := strings.Fields(line)
-		linkText := strings.Join(parts[2:], " ")
-		newLine := utils.WrapLine("=> "+linkText+"\n", width)
-
-		for _, l := range strings.Split(newLine, "\n") {
-			parsedBody = parsedBody + l + "\n"
-			linkMap[lineNum] = strings.Clone(parts[1])
-			lineNum++
-		}
-	}
-
-	return parsedBody, linkMap
+func (s *GeminiBrowser) FindNextLink() int {
+	return s.CurrentPage.View.FindNextLink()
 }

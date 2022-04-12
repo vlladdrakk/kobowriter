@@ -114,6 +114,7 @@ func PromptForInput(s *screener.Screen, bus EventBus.Bus, prompt string) string 
 					cursorPos = (cursorPos - 1) % len(result)
 				}
 			case "KEY_ESC":
+				result = ""
 				c <- true
 			case "KEY_LEFT":
 				if cursorPos > 0 {

@@ -36,6 +36,10 @@ func (t *TextView) setContent(text string) {
 	t.lineCount = lineCount
 }
 
+func (t *TextView) GetCurrentLine() string {
+	return t.wrapContent[t.cursorPos.Y]
+}
+
 func (t *TextView) setCursorIndex(index int) {
 
 	// Bounds
@@ -64,8 +68,8 @@ func (t *TextView) setCursorIndex(index int) {
 	}
 
 	t.cursorPos = Position{
-		x,
-		y,
+		X: x,
+		Y: y,
 	}
 
 	t.updateScroll()

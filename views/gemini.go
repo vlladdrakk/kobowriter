@@ -2,7 +2,6 @@ package views
 
 import (
 	"fmt"
-	"sort"
 	"strings"
 
 	"github.com/asaskevich/EventBus"
@@ -16,20 +15,18 @@ import (
 func LaunchGemini(screen *screener.Screen, bus EventBus.Bus, url string) func() {
 	app := gbrowser.GeminiBrowser{
 		CurrentPage: gbrowser.Page{
-			Url:     strings.Clone(url),
-			LinkMap: make(map[int]string),
+			Url: strings.Clone(url),
 		},
-		Cache:       make(map[string]gbrowser.Page),
-		Bus:         bus,
-		ScreenWidth: int(screen.Width) - 2,
+		Cache:        make(map[string]gbrowser.Page),
+		Bus:          bus,
+		ScreenWidth:  int(screen.Width) - 4,
+		ScreenHeight: int(screen.Height) - 2,
 	}
 
-	text := &TextView{
-		width:       int(screen.Width) - 4,
-		height:      int(screen.Height) - 2,
-		content:     "",
-		scroll:      0,
-		cursorIndex: 0,
+	text := &ui.HyperTextView{
+		Width:       int(screen.Width) - 4,
+		Height:      int(screen.Height) - 2,
+		CursorIndex: 0,
 	}
 
 	linkHandler := func(link string) {
@@ -47,24 +44,28 @@ func LaunchGemini(screen *screener.Screen, bus EventBus.Bus, url string) func() 
 		if !strings.Contains(link, "://") {
 			app.PushHistory(app.CurrentPage)
 
-			app.LoadPage(app.CurrentPage.Url + "/" + link)
+			if link[0] == '/' {
+				app.LoadPage(app.CurrentPage.Url + link)
+			} else {
+				app.LoadPage(app.CurrentPage.Url + "/" + link)
+			}
 		}
 	}
 
 	bus.SubscribeAsync("GEMINI:handleLink", linkHandler, false)
 
 	updateCursor := func() {
-		text.setCursorPos(app.CurrentPage.Position)
+		text.SetCursorPos(app.CurrentPage.Position)
 	}
 
 	bus.SubscribeAsync("GEMINI:update_cursor", updateCursor, false)
 
 	render := func() {
-		text.setContent(app.CurrentPage.Body)
-		text.setCursorIndex(0)
+		text = &app.CurrentPage.View
+		// text.SetCursorIndex(0)
 
-		text.setCursorPos(app.CurrentPage.Position)
-		compiledMatrix := matrix.PasteMatrix(screen.GetOriginalMatrix(), text.renderMatrix(), 2, 1)
+		// text.SetCursorPos(app.CurrentPage.Position)
+		compiledMatrix := matrix.PasteMatrix(screen.GetOriginalMatrix(), text.RenderMatrix(), 2, 1)
 		screen.Print(compiledMatrix)
 	}
 
@@ -79,30 +80,30 @@ func LaunchGemini(screen *screener.Screen, bus EventBus.Bus, url string) func() 
 		}
 		linesToMove := 1
 		if e.IsCtrl {
-			linesToMove = text.height
+			linesToMove = text.Height
 		}
 
 		// if is modifier key
 		switch e.KeyValue {
 		case "KEY_RIGHT":
-			text.setCursorIndex(text.cursorIndex + 1)
+			text.SetCursorIndex(text.CursorIndex + 1)
 		case "KEY_LEFT":
-			text.setCursorIndex(text.cursorIndex - 1)
+			text.SetCursorIndex(text.CursorIndex - 1)
 		case "KEY_DOWN":
-			text.setCursorPos(Position{
-				X: text.cursorPos.X,
-				Y: text.cursorPos.Y + linesToMove,
+			text.SetCursorPos(Position{
+				X: text.CursorPos.X,
+				Y: text.CursorPos.Y + linesToMove,
 			})
 		case "KEY_UP":
-			text.setCursorPos(Position{
-				X: text.cursorPos.X,
-				Y: text.cursorPos.Y - linesToMove,
+			text.SetCursorPos(Position{
+				X: text.CursorPos.X,
+				Y: text.CursorPos.Y - linesToMove,
 			})
 		case "KEY_ESC":
 			bus.Publish("ROUTING", "menu")
 		case "KEY_ENTER":
-			linkMap := app.CurrentPage.LinkMap
-			lineNumber := text.cursorPos.Y
+			linkMap := app.CurrentPage.View.LinkMap
+			lineNumber := text.CursorPos.Y
 			fmt.Println("line number:", lineNumber, linkMap[lineNumber])
 			if _, ok := linkMap[lineNumber]; ok {
 				bus.Publish("GEMINI:handleLink", linkMap[lineNumber])
@@ -110,31 +111,25 @@ func LaunchGemini(screen *screener.Screen, bus EventBus.Bus, url string) func() 
 		case "KEY_F12":
 			screen.ClearFlash()
 		case "KEY_TAB":
-			linkMap := app.CurrentPage.LinkMap
-			lineNumber := text.cursorPos.Y
-			keys := make([]int, 0, len(linkMap))
-			for k := range linkMap {
-				keys = append(keys, k)
-			}
+			nextLink := app.FindNextLink()
 
-			sort.Ints(keys)
-			for _, k := range keys {
-				if k > lineNumber && linkMap[k] != linkMap[lineNumber] {
-					text.setCursorPos(Position{
-						X: text.cursorPos.X,
-						Y: k,
-					})
-					break
-				}
+			if nextLink >= 0 {
+				text.SetCursorPos(Position{X: 0, Y: nextLink})
+				// bus.Publish("GEMINI:render")
 			}
 		case "g":
 			stalledForInput = true
 			goToUrl := ui.PromptForInput(screen, bus, "Go to url:")
 			stalledForInput = false
-			fmt.Println("goto", goToUrl)
+
+			if goToUrl == "" {
+				break
+			}
+
 			if !strings.Contains(goToUrl, "gemini://") {
 				goToUrl = "gemini://" + goToUrl
 			}
+
 			bus.Publish("GEMINI:handleLink", goToUrl)
 		case "u":
 			app.GoBack()
@@ -154,7 +149,7 @@ func LaunchGemini(screen *screener.Screen, bus EventBus.Bus, url string) func() 
 			stalledForInput = false
 		}
 
-		compiledMatrix := matrix.PasteMatrix(screen.GetOriginalMatrix(), text.renderMatrix(), 2, 1)
+		compiledMatrix := matrix.PasteMatrix(screen.GetOriginalMatrix(), text.RenderMatrix(), 2, 1)
 		screen.Print(compiledMatrix)
 	}
 
