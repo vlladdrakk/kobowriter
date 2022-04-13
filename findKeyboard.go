@@ -1,7 +1,7 @@
 package main
 
 import (
-	"fmt"
+	"log"
 	"os/exec"
 	"time"
 
@@ -36,7 +36,7 @@ func findKeyboard(screen *screener.Screen, bus EventBus.Bus, lang string) {
 	}
 
 	screen.Clear()
-	fmt.Println("Found a keyboard at", keyboard)
+	log.Println("Found a keyboard at", keyboard)
 
 	k, _ := keylogger.New(keyboard)
 	go event.BindKeyEvent(k, bus, lang)

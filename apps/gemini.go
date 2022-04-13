@@ -2,7 +2,6 @@ package gbrowser
 
 import (
 	"context"
-	"fmt"
 	"io/ioutil"
 	"log"
 	"strings"
@@ -18,31 +17,32 @@ type Position = utils.Position
 type HyperTextView = ui.HyperTextView
 
 type HistoryItem struct {
-	url      string
-	position Position
-}
-
-type Page struct {
-	Url      string
-	View     HyperTextView
-	exp      time.Time
+	Url      string `json:"url"`
 	Position Position
 }
 
-type bookmark struct {
-	url  string
-	name string
+type Page struct {
+	Url      string        `json:"url"`
+	View     HyperTextView `json:"view"`
+	Exp      time.Time     `json:"expiration"`
+	Position Position      `json:"position"`
+}
+
+type Bookmark struct {
+	Url  string `json:"url"`
+	Name string `json:"name"`
 }
 
 type GeminiBrowser struct {
-	Cache        map[string]Page
-	CurrentPage  Page
-	History      []HistoryItem
-	Future       []HistoryItem
-	Bookmarks    []bookmark
+	Cache        map[string]Page `json:"cache"`
+	CurrentPage  Page            `json:"current_page"`
+	History      []HistoryItem   `json:"history"`
+	Future       []HistoryItem   `json:"future"`
+	Bookmarks    []Bookmark      `json:"bookmarks"`
 	Bus          EventBus.Bus
 	ScreenWidth  int
 	ScreenHeight int
+	SaveLocation string `json:"save_location"`
 }
 
 func parseDomain(url string) string {
@@ -79,12 +79,12 @@ func makeRequest(url string) *gemini.Response {
 	}
 
 	if err != nil {
-		fmt.Println("Request failed:", err)
+		log.Println("Request failed:", err)
 	}
 
 	// Follow redirects
 	if r != nil && r.Header.Code[0] == '3' {
-		fmt.Println("Redirecting to", r.Header.Meta)
+		log.Println("Redirecting to", r.Header.Meta)
 		return makeRequest(r.Header.Meta)
 	}
 
@@ -93,8 +93,8 @@ func makeRequest(url string) *gemini.Response {
 
 func (s *GeminiBrowser) PushHistory(p Page) {
 	item := HistoryItem{
-		url:      p.Url,
-		position: p.Position,
+		Url:      p.Url,
+		Position: p.Position,
 	}
 
 	s.History = append(s.History, item)
@@ -102,8 +102,8 @@ func (s *GeminiBrowser) PushHistory(p Page) {
 
 func (s *GeminiBrowser) PushFuture(p Page) {
 	item := HistoryItem{
-		url:      p.Url,
-		position: p.Position,
+		Url:      p.Url,
+		Position: p.Position,
 	}
 
 	s.Future = append(s.Future, item)
@@ -138,7 +138,7 @@ func (s *GeminiBrowser) LoadPage(url string) {
 	var p Page
 	cachedPage, isCached := s.Cache[url]
 
-	if isCached && cachedPage.exp.After(time.Now()) {
+	if isCached && cachedPage.Exp.After(time.Now()) {
 		p = cachedPage
 	} else {
 		p = s.LoadUrl(url)
@@ -154,7 +154,7 @@ func (s *GeminiBrowser) LoadPage(url string) {
 // No cache check, just loads a URL and returns a Page struct
 func (s *GeminiBrowser) LoadUrl(url string) Page {
 	response := makeRequest(url)
-	fmt.Println("Loaded", url)
+	log.Println("Loaded", url)
 	body, err := ioutil.ReadAll(response.Body)
 	if err != nil {
 		log.Fatalf("failed to read body: %v", err)
@@ -167,7 +167,7 @@ func (s *GeminiBrowser) LoadUrl(url string) Page {
 	return Page{
 		View: view,
 		Url:  url,
-		exp:  time.Now().Add(5 * time.Minute),
+		Exp:  time.Now().Add(5 * time.Minute),
 	}
 }
 
@@ -175,16 +175,16 @@ func (s *GeminiBrowser) GoBack() {
 	s.PushFuture(s.CurrentPage)
 	item := s.PopHistory()
 
-	s.LoadPage(item.url)
-	s.SetCursor(item.position)
+	s.LoadPage(item.Url)
+	s.SetCursor(item.Position)
 }
 
 func (s *GeminiBrowser) GoForward() {
 	s.PushHistory(s.CurrentPage)
 	item := s.PopFuture()
 
-	s.LoadPage(item.url)
-	s.SetCursor(item.position)
+	s.LoadPage(item.Url)
+	s.SetCursor(item.Position)
 }
 
 func (s *GeminiBrowser) SetCursor(p Position) {
@@ -194,9 +194,9 @@ func (s *GeminiBrowser) SetCursor(p Position) {
 }
 
 func (s *GeminiBrowser) BookmarkCurrent(name string) {
-	s.Bookmarks = append(s.Bookmarks, bookmark{
-		url:  s.CurrentPage.Url,
-		name: name,
+	s.Bookmarks = append(s.Bookmarks, Bookmark{
+		Url:  s.CurrentPage.Url,
+		Name: name,
 	})
 }
 
@@ -204,8 +204,8 @@ func (s *GeminiBrowser) GetBookmarkOptions() []ui.SelectOption {
 	var bookmarkOptions []ui.SelectOption
 	for _, b := range s.Bookmarks {
 		bookmarkOptions = append(bookmarkOptions, ui.SelectOption{
-			Label: b.name,
-			Value: b.url,
+			Label: b.Name,
+			Value: b.Url,
 		})
 	}
 

@@ -2,8 +2,8 @@ package screener
 
 import (
 	"bytes"
-	"fmt"
 	"image"
+	"log"
 	"math"
 
 	"github.com/fogleman/gg"
@@ -68,7 +68,7 @@ func InitScreen(fontScale uint8) (s *Screen) {
 
 func (s *Screen) ChangeFontScale(scale uint8) {
 	if scale > 3 {
-		fmt.Println("Failed to change font scale, out of bounds: ", scale)
+		log.Println("Failed to change font scale, out of bounds: ", scale)
 		return
 	}
 

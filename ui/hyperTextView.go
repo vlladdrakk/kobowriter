@@ -12,22 +12,22 @@ import (
 type Position = utils.Position
 
 type HyperTextView struct {
-	content     string
-	Width       int
-	Height      int
-	wrapContent []string
-	CursorIndex int
-	CursorPos   Position
-	lineCount   []int
-	scroll      int
-	LinkMap     map[int]string
+	Content     string         `json:"content"`
+	Width       int            `json:"width"`
+	Height      int            `json:"height"`
+	WrapContent []string       `json:"wrap_content"`
+	CursorIndex int            `json:"cursor_index"`
+	CursorPos   Position       `json:"cursor_pos"`
+	LineCount   []int          `json:"lineCount"`
+	Scroll      int            `json:"scroll"`
+	LinkMap     map[int]string `json:"linkMap"`
 }
 
 func (t *HyperTextView) Init(width int, height int) {
 	t.Width = width
 	t.Height = height
-	t.content = ""
-	t.scroll = 0
+	t.Content = ""
+	t.Scroll = 0
 	t.LinkMap = make(map[int]string)
 }
 
@@ -35,18 +35,18 @@ func (t *HyperTextView) SetContent(text string) {
 	t.parseLinks(text)
 
 	lineCount := []int{}
-	for _, line := range t.wrapContent {
+	for _, line := range t.WrapContent {
 		lineCount = append(lineCount, utf8.RuneCountInString(line)+1)
 	}
-	t.lineCount = lineCount
+	t.LineCount = lineCount
 }
 
 func (t *HyperTextView) GetWrappedContent() []string {
-	return t.wrapContent
+	return t.WrapContent
 }
 
 func (t *HyperTextView) GetCurrentLine() string {
-	return t.wrapContent[t.CursorPos.Y]
+	return t.WrapContent[t.CursorPos.Y]
 }
 
 func (t *HyperTextView) SetCursorIndex(index int) {
@@ -55,8 +55,8 @@ func (t *HyperTextView) SetCursorIndex(index int) {
 	if index < 0 {
 		index = 0
 	}
-	if index > utils.LenString(t.content) {
-		index = utils.LenString(t.content)
+	if index > utils.LenString(t.Content) {
+		index = utils.LenString(t.Content)
 	}
 
 	// Processing
@@ -66,7 +66,7 @@ func (t *HyperTextView) SetCursorIndex(index int) {
 
 	agg := 0
 
-	for i, count := range t.lineCount {
+	for i, count := range t.LineCount {
 		aggNext := count + agg
 		if aggNext > t.CursorIndex {
 			y = i
@@ -95,12 +95,12 @@ func (t *HyperTextView) SetCursorPos(position Position) {
 		position.X = 0
 	}
 
-	if position.Y > len(t.lineCount)-1 {
-		position.Y = len(t.lineCount) - 1
+	if position.Y > len(t.LineCount)-1 {
+		position.Y = len(t.LineCount) - 1
 	}
 
-	if t.lineCount[position.Y]-1 < position.X {
-		position.X = t.lineCount[position.Y] - 1
+	if t.LineCount[position.Y]-1 < position.X {
+		position.X = t.LineCount[position.Y] - 1
 	}
 
 	// Procesing
@@ -108,7 +108,7 @@ func (t *HyperTextView) SetCursorPos(position Position) {
 	agg := 0
 
 	for i := 0; i < position.Y; i++ {
-		agg += t.lineCount[i]
+		agg += t.LineCount[i]
 	}
 
 	agg += position.X
@@ -120,32 +120,32 @@ func (t *HyperTextView) SetCursorPos(position Position) {
 }
 
 func (t *HyperTextView) RenderMatrix() matrix.Matrix {
-	textMatrix := matrix.CreateMatrixFromText(t.content, t.Width)
+	textMatrix := matrix.CreateMatrixFromText(t.Content, t.Width)
 	if t.CursorPos.X >= 0 && t.CursorPos.Y >= 0 && t.CursorPos.X < t.Width {
 		textMatrix[t.CursorPos.Y][t.CursorPos.X].IsInverted = true
 	}
-	endBound := t.scroll + t.Height
+	endBound := t.Scroll + t.Height
 	if endBound > len(textMatrix) {
 		endBound = len(textMatrix)
 	}
-	scrolledTextMatrix := textMatrix[t.scroll:endBound]
+	scrolledTextMatrix := textMatrix[t.Scroll:endBound]
 	return scrolledTextMatrix
 }
 
 func (t *HyperTextView) updateScroll() {
 	y := t.CursorPos.Y
 
-	if y > t.scroll+t.Height-1 {
-		t.scroll = y - 5
+	if y > t.Scroll+t.Height-1 {
+		t.Scroll = y - 5
 	}
-	if y < t.scroll {
-		t.scroll = y - t.Height + 5
+	if y < t.Scroll {
+		t.Scroll = y - t.Height + 5
 	}
-	if t.scroll > len(t.wrapContent) {
-		t.scroll = len(t.wrapContent) - 5
+	if t.Scroll > len(t.WrapContent) {
+		t.Scroll = len(t.WrapContent) - 5
 	}
-	if t.scroll < 0 {
-		t.scroll = 0
+	if t.Scroll < 0 {
+		t.Scroll = 0
 	}
 }
 
@@ -174,11 +174,11 @@ func (t *HyperTextView) parseLinks(content string) {
 		}
 	}
 
-	t.wrapContent = strings.Split(utils.WrapText(parsedBody, t.Width), "\n")
-	t.content = parsedBody
+	t.WrapContent = strings.Split(utils.WrapText(parsedBody, t.Width), "\n")
+	t.Content = parsedBody
 	c := 0
 
-	for i, line := range t.wrapContent {
+	for i, line := range t.WrapContent {
 		if len(line) >= 3 && line[0:2] == "=>" {
 			t.LinkMap[i] = linkList[c]
 			c++

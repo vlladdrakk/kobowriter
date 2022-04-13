@@ -1,7 +1,7 @@
 package views
 
 import (
-	"fmt"
+	"log"
 	"strings"
 
 	"github.com/asaskevich/EventBus"
@@ -12,15 +12,26 @@ import (
 	"github.com/olup/kobowriter/ui"
 )
 
-func LaunchGemini(screen *screener.Screen, bus EventBus.Bus, url string) func() {
-	app := gbrowser.GeminiBrowser{
-		CurrentPage: gbrowser.Page{
-			Url: strings.Clone(url),
-		},
-		Cache:        make(map[string]gbrowser.Page),
-		Bus:          bus,
-		ScreenWidth:  int(screen.Width) - 4,
-		ScreenHeight: int(screen.Height) - 2,
+func LaunchGemini(screen *screener.Screen, bus EventBus.Bus, url string, saveLocation string) func() {
+	app, ok := gbrowser.LoadState(saveLocation)
+
+	if !ok {
+		app = gbrowser.GeminiBrowser{
+			CurrentPage: gbrowser.Page{
+				Url: strings.Clone(url),
+			},
+			Cache:        make(map[string]gbrowser.Page),
+			Bus:          bus,
+			ScreenWidth:  int(screen.Width) - 4,
+			ScreenHeight: int(screen.Height) - 2,
+			SaveLocation: saveLocation,
+		}
+	} else {
+		app.Bus = bus
+		app.Cache = make(map[string]gbrowser.Page)
+		app.ScreenWidth = int(screen.Width) - 4
+		app.ScreenHeight = int(screen.Height) - 2
+		app.SaveLocation = saveLocation
 	}
 
 	text := &ui.HyperTextView{
@@ -62,16 +73,15 @@ func LaunchGemini(screen *screener.Screen, bus EventBus.Bus, url string) func() 
 
 	render := func() {
 		text = &app.CurrentPage.View
-		// text.SetCursorIndex(0)
 
-		// text.SetCursorPos(app.CurrentPage.Position)
 		compiledMatrix := matrix.PasteMatrix(screen.GetOriginalMatrix(), text.RenderMatrix(), 2, 1)
 		screen.Print(compiledMatrix)
 	}
 
 	bus.SubscribeAsync("GEMINI:render", render, false)
 
-	bus.Publish("GEMINI:handleLink", url)
+	// bus.Publish("GEMINI:handleLink", url)
+	bus.Publish("GEMINI:render")
 	stalledForInput := false
 
 	onEvent := func(e event.KeyEvent) {
@@ -100,11 +110,12 @@ func LaunchGemini(screen *screener.Screen, bus EventBus.Bus, url string) func() 
 				Y: text.CursorPos.Y - linesToMove,
 			})
 		case "KEY_ESC":
+			app.SaveState()
 			bus.Publish("ROUTING", "menu")
 		case "KEY_ENTER":
 			linkMap := app.CurrentPage.View.LinkMap
 			lineNumber := text.CursorPos.Y
-			fmt.Println("line number:", lineNumber, linkMap[lineNumber])
+			log.Println("line number:", lineNumber, linkMap[lineNumber])
 			if _, ok := linkMap[lineNumber]; ok {
 				bus.Publish("GEMINI:handleLink", linkMap[lineNumber])
 			}
@@ -143,9 +154,8 @@ func LaunchGemini(screen *screener.Screen, bus EventBus.Bus, url string) func() 
 		case "b":
 			stalledForInput = true
 			bookmarks := app.GetBookmarkOptions()
-			fmt.Println("bookmark count", len(bookmarks))
 			selectedBookmark := ui.MultiSelect(screen, bus, "Bookmarks", bookmarks)
-			fmt.Println("selected", selectedBookmark)
+			log.Println("selected", selectedBookmark)
 			stalledForInput = false
 		}
 

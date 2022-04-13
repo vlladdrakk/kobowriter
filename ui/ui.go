@@ -1,7 +1,7 @@
 package ui
 
 import (
-	"fmt"
+	"log"
 	"strings"
 
 	"github.com/asaskevich/EventBus"
@@ -102,7 +102,7 @@ func PromptForInput(s *screener.Screen, bus EventBus.Bus, prompt string) string 
 		} else {
 			switch e.KeyValue {
 			case "KEY_ENTER":
-				fmt.Println("Done inputting")
+				log.Println("Done inputting")
 				c <- true
 			case "KEY_BACKSPACE":
 				if len(result) == cursorPos {
@@ -111,7 +111,7 @@ func PromptForInput(s *screener.Screen, bus EventBus.Bus, prompt string) string 
 					result = result[:cursorPos-1] + result[cursorPos:]
 				}
 				if cursorPos > 0 {
-					cursorPos = (cursorPos - 1) % len(result)
+					cursorPos--
 				}
 			case "KEY_ESC":
 				result = ""

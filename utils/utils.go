@@ -2,7 +2,7 @@ package utils
 
 import (
 	"encoding/json"
-	"fmt"
+	"log"
 	"os"
 	"path"
 	"strings"
@@ -38,7 +38,7 @@ func LoadConfig(saveLocation string) Config {
 	// jsonFile's content into 'users' which we defined above
 	err = json.Unmarshal(content, &config)
 	if err != nil {
-		fmt.Println("Unmarshal error:", err)
+		log.Println("Unmarshal error:", err)
 	}
 
 	if config.FontScale == 0 {
@@ -55,12 +55,12 @@ func SaveConfig(config Config, saveLocation string) {
 
 	err := os.MkdirAll(saveLocation, 777)
 	if err != nil {
-		fmt.Println("MkdirAll error:", err)
+		log.Println("MkdirAll error:", err)
 	}
 
 	err = os.WriteFile(path.Join(saveLocation, "config.json"), []byte(content), 777)
 	if err != nil {
-		fmt.Println("WriteFile error:", err)
+		log.Println("WriteFile error:", err)
 	}
 }
 

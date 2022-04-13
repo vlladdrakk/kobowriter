@@ -1,7 +1,7 @@
 package main
 
 import (
-	"fmt"
+	"log"
 	"os"
 	"os/exec"
 	"os/signal"
@@ -19,18 +19,20 @@ var saveLocation = "/mnt/onboard/.adds/kobowriter"
 var filename = "autosave.txt"
 
 func main() {
-	fmt.Println("Program started")
+	log.Println("Program started")
 
 	// kill all nickel related stuff. Will need a reboot to find back the usual
-	fmt.Println("Killing XCSoar programs ...")
+	log.Println("Killing XCSoar programs ...")
 	exec.Command("killall", "-s", "SIGKILL", "KoboMenu").Run()
+	exec.Command("killall", "-s", "SIGKILL", "sickel").Run()
+	exec.Command("killall", "-s", "SIGKILL", "nickel").Run()
 
 	// rotate screen
-	fmt.Println("Rotate screen ...")
+	log.Println("Rotate screen ...")
 	exec.Command(`fbdepth`, `--rota`, `2`).Run()
 
 	// initialise fbink
-	fmt.Println("Init FBInk ...")
+	log.Println("Init FBInk ...")
 
 	config := utils.LoadConfig(saveLocation)
 	screen := screener.InitScreen(config.FontScale)
@@ -88,7 +90,7 @@ func main() {
 		case "app-menu":
 			unmount = views.AppMenu(screen, bus, saveLocation)
 		case "gemini":
-			unmount = views.LaunchGemini(screen, bus, "gemini://gemini.circumlunar.space")
+			unmount = views.LaunchGemini(screen, bus, "gemini://gemini.circumlunar.space", saveLocation)
 		case "qr":
 			unmount = views.Qr(screen, bus, saveLocation)
 
