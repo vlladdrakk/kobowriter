@@ -154,6 +154,14 @@ func (s *GeminiBrowser) LoadPage(url string) {
 // No cache check, just loads a URL and returns a Page struct
 func (s *GeminiBrowser) LoadUrl(url string) Page {
 	response := makeRequest(url)
+	noCache := false
+
+	if response.Header.Code[0] == '1' {
+		log.Println("Requesting input")
+		s.Bus.Publish("GEMINI:input", response.Header.Meta, url)
+		noCache = true
+	}
+
 	log.Println("Loaded", url)
 	body, err := ioutil.ReadAll(response.Body)
 	if err != nil {
@@ -164,10 +172,16 @@ func (s *GeminiBrowser) LoadUrl(url string) Page {
 	view.Init(s.ScreenWidth, s.ScreenHeight)
 	view.SetContent(string(body))
 
+	expTime := time.Now().Add(5 * time.Minute)
+
+	if noCache {
+		expTime = time.Now()
+	}
+
 	return Page{
 		View: view,
 		Url:  url,
-		Exp:  time.Now().Add(5 * time.Minute),
+		Exp:  expTime,
 	}
 }
 

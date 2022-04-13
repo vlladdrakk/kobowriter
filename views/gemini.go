@@ -2,6 +2,7 @@ package views
 
 import (
 	"log"
+	"regexp"
 	"strings"
 
 	"github.com/asaskevich/EventBus"
@@ -14,6 +15,7 @@ import (
 
 func LaunchGemini(screen *screener.Screen, bus EventBus.Bus, url string, saveLocation string) func() {
 	app, ok := gbrowser.LoadState(saveLocation)
+	stalledForInput := false
 
 	if !ok {
 		app = gbrowser.GeminiBrowser{
@@ -56,14 +58,36 @@ func LaunchGemini(screen *screener.Screen, bus EventBus.Bus, url string, saveLoc
 			app.PushHistory(app.CurrentPage)
 
 			if link[0] == '/' {
-				app.LoadPage(app.CurrentPage.Url + link)
+				url := strings.Clone(app.CurrentPage.Url)
+
+				if strings.Contains(url, "?") {
+					url = strings.Split(url, "?")[0]
+				}
+
+				re := regexp.MustCompile("[a-zA-Z](/)[a-zA-Z]")
+				splitIndex := re.FindIndex([]byte(url))
+
+				if len(splitIndex) > 0 {
+					url = url[:splitIndex[0]+1]
+				}
+
+				app.LoadPage(url + link)
 			} else {
-				app.LoadPage(app.CurrentPage.Url + "/" + link)
+				app.LoadPage(url + "/" + link)
 			}
 		}
 	}
 
 	bus.SubscribeAsync("GEMINI:handleLink", linkHandler, false)
+
+	inputHandler := func(prompt string, url string) {
+		stalledForInput = true
+		input := ui.PromptForInput(screen, bus, prompt)
+		bus.Publish("GEMINI:handleLink", url+"?"+input)
+		stalledForInput = false
+	}
+
+	bus.SubscribeAsync("GEMINI:input", inputHandler, false)
 
 	updateCursor := func() {
 		text.SetCursorPos(app.CurrentPage.Position)
@@ -82,7 +106,6 @@ func LaunchGemini(screen *screener.Screen, bus EventBus.Bus, url string, saveLoc
 
 	// bus.Publish("GEMINI:handleLink", url)
 	bus.Publish("GEMINI:render")
-	stalledForInput := false
 
 	onEvent := func(e event.KeyEvent) {
 		if stalledForInput {
