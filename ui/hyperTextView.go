@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"regexp"
 	"sort"
 	"strings"
 	"unicode/utf8"
@@ -10,6 +11,11 @@ import (
 )
 
 type Position = utils.Position
+
+const (
+	PLAINTEXT = 0
+	GEMTEXT   = 1
+)
 
 type HyperTextView struct {
 	Content     string         `json:"content"`
@@ -21,14 +27,16 @@ type HyperTextView struct {
 	LineCount   []int          `json:"lineCount"`
 	Scroll      int            `json:"scroll"`
 	LinkMap     map[int]string `json:"linkMap"`
+	Type        int            `json:"type"`
 }
 
-func (t *HyperTextView) Init(width int, height int) {
+func (t *HyperTextView) Init(width int, height int, typeId int) {
 	t.Width = width
 	t.Height = height
 	t.Content = ""
 	t.Scroll = 0
 	t.LinkMap = make(map[int]string)
+	t.Type = typeId
 }
 
 func (t *HyperTextView) SetContent(text string) {
@@ -121,6 +129,21 @@ func (t *HyperTextView) SetCursorPos(position Position) {
 
 func (t *HyperTextView) RenderMatrix() matrix.Matrix {
 	textMatrix := matrix.CreateMatrixFromText(t.Content, t.Width)
+
+	if t.Type == GEMTEXT {
+		re := regexp.MustCompile("^(#+)")
+		for i, l := range t.WrapContent {
+			if re.Match([]byte(l)) {
+				match := string(re.Find([]byte(l)))
+				size := 5 - len(match)
+				textMatrix = matrix.SetLineSize(textMatrix, i, size)
+				line := textMatrix[i]
+				line = line[(len(match) + 1):]
+				textMatrix[i] = line
+			}
+		}
+	}
+
 	if t.CursorPos.X >= 0 && t.CursorPos.Y >= 0 && t.CursorPos.X < t.Width {
 		textMatrix[t.CursorPos.Y][t.CursorPos.X].IsInverted = true
 	}

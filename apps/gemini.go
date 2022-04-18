@@ -169,7 +169,7 @@ func (s *GeminiBrowser) LoadUrl(url string) Page {
 	}
 
 	view := HyperTextView{}
-	view.Init(s.ScreenWidth, s.ScreenHeight)
+	view.Init(s.ScreenWidth, s.ScreenHeight, ui.GEMTEXT)
 	view.SetContent(string(body))
 
 	expTime := time.Now().Add(5 * time.Minute)

@@ -2,6 +2,7 @@ package matrix
 
 import (
 	"strings"
+	"unicode"
 
 	"github.com/olup/kobowriter/utils"
 )
@@ -9,6 +10,7 @@ import (
 type MatrixElement struct {
 	Content    rune
 	IsInverted bool
+	Size       int
 }
 
 type Matrix [][]MatrixElement
@@ -21,6 +23,7 @@ func CreateNewMatrix(width int, height int) Matrix {
 			a[i][j] = MatrixElement{
 				Content:    ' ',
 				IsInverted: false,
+				Size:       0,
 			}
 		}
 	}
@@ -106,7 +109,21 @@ func CopyMatrix(in Matrix) (out Matrix) {
 		for j := range out[i] {
 			out[i][j].Content = in[i][j].Content
 			out[i][j].IsInverted = in[i][j].IsInverted
+			out[i][j].Size = in[i][j].Size
 		}
 	}
 	return
+}
+
+func SetLineSize(m Matrix, line int, size int) Matrix {
+	if len(m) < line {
+		return m
+	}
+
+	for i := range m[line] {
+		m[line][i].Size = size
+		m[line][i].Content = unicode.ToUpper(m[line][i].Content)
+	}
+
+	return m
 }

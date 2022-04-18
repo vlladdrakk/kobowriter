@@ -58,22 +58,22 @@ func LaunchGemini(screen *screener.Screen, bus EventBus.Bus, url string, saveLoc
 			app.PushHistory(app.CurrentPage)
 
 			if link[0] == '/' {
-				url := strings.Clone(app.CurrentPage.Url)
+				baseUrl := strings.Clone(app.CurrentPage.Url)
 
-				if strings.Contains(url, "?") {
-					url = strings.Split(url, "?")[0]
+				if strings.Contains(baseUrl, "?") {
+					baseUrl = strings.Split(baseUrl, "?")[0]
 				}
 
 				re := regexp.MustCompile("[a-zA-Z](/)[a-zA-Z]")
-				splitIndex := re.FindIndex([]byte(url))
+				splitIndex := re.FindIndex([]byte(baseUrl))
 
 				if len(splitIndex) > 0 {
-					url = url[:splitIndex[0]+1]
+					baseUrl = baseUrl[:splitIndex[0]+1]
 				}
 
-				app.LoadPage(url + link)
+				app.LoadPage(baseUrl + link)
 			} else {
-				app.LoadPage(url + "/" + link)
+				app.LoadPage(app.CurrentPage.Url + "/" + link)
 			}
 		}
 	}
@@ -178,8 +178,13 @@ func LaunchGemini(screen *screener.Screen, bus EventBus.Bus, url string, saveLoc
 			stalledForInput = true
 			bookmarks := app.GetBookmarkOptions()
 			selectedBookmark := ui.MultiSelect(screen, bus, "Bookmarks", bookmarks)
-			log.Println("selected", selectedBookmark)
+			bus.Publish("GEMINI:handleLink", selectedBookmark)
 			stalledForInput = false
+		case "r":
+			bus.Publish("GEMINI:handleLink", app.CurrentPage.Url)
+		case "R":
+			delete(app.Cache, app.CurrentPage.Url)
+			bus.Publish("GEMINI:handleLink", app.CurrentPage.Url)
 		}
 
 		compiledMatrix := matrix.PasteMatrix(screen.GetOriginalMatrix(), text.RenderMatrix(), 2, 1)

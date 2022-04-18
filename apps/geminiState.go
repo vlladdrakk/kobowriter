@@ -77,7 +77,6 @@ func LoadState(saveLocation string) (GeminiBrowser, bool) {
 		browser.Bookmarks = append(browser.Bookmarks, bookmarkFromJson(b.(map[string]interface{})))
 	}
 
-	log.Println("browser", browser)
 	return browser, true
 }
 
@@ -146,6 +145,7 @@ func hyperTextViewFromJson(json map[string]interface{}) HyperTextView {
 		Content:     json["content"].(string),
 		WrapContent: wrapContent,
 		LineCount:   lineCount,
+		Type:        int(json["type"].(float64)),
 	}
 
 	return view

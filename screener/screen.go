@@ -27,7 +27,7 @@ var charCache = map[string][]byte{}
 
 func InitScreen(fontScale uint8) (s *Screen) {
 	s = &Screen{}
-	s.fontType = "bitmap"
+	s.fontType = "truetype"
 
 	s.state = gofbink.FBInkState{}
 
@@ -40,18 +40,43 @@ func InitScreen(fontScale uint8) (s *Screen) {
 
 	s.fb.Open()
 	s.fb.Init(&fbinkOpts)
-	s.fb.AddOTfont("/mnt/onboard/.adds/kobowriter/inc.ttf", gofbink.FntRegular)
 
+	// Setup fonts
+	s.fb.AddOTfont("/mnt/onboard/SourceCodePro-Regular.ttf", gofbink.FntRegular)
+	s.fb.AddOTfont("/mnt/onboard/SourceCodePro-Bold.ttf", gofbink.FntBold)
 	s.fb.GetState(&fbinkOpts, &s.state)
 
 	// clear screen on initialisation
 	s.ClearFlash()
 
 	if s.fontType == "truetype" {
-		dc.LoadFontFace("inc.ttf", 96)
-		s.ttSize = 40
-		s.Width = int(s.state.ScreenWidth) / ((s.ttSize / 5) * 3)
-		s.Height = int(s.state.ScreenHeight) / s.ttSize
+		switch fontScale {
+		case 1:
+			{
+				s.ttSize = 30
+			}
+		case 2:
+			{
+				s.ttSize = 40
+			}
+		case 3:
+			{
+				s.ttSize = 50
+			}
+		}
+
+		font, err := gg.LoadFontFace("/mnt/onboard/SourceCodePro-Regular.ttf", float64(s.ttSize))
+
+		if err != nil {
+			log.Panicf("Font load error: %v", err)
+		}
+
+		dc.SetFontFace(font)
+
+		w, h := dc.MeasureString("A")
+
+		s.Width = int(s.state.ScreenWidth) / int(w)
+		s.Height = int(s.state.ScreenHeight) / int(h)
 	} else {
 		s.Width = int(s.state.MaxCols)
 		s.Height = int(s.state.MaxRows)
@@ -112,6 +137,12 @@ func printDiff(previous matrix.Matrix, next matrix.Matrix, fb *gofbink.FBInk, fo
 						Width:  uint16(ttWidth),
 					})
 
+					fontStyle := gofbink.FntRegular
+
+					if next[i][j].Size > 0 {
+						fontStyle = gofbink.FntBold
+					}
+
 					fb.PrintOT(string(next[i][j].Content), &gofbink.FBInkOTConfig{
 						Margins: struct {
 							Top    int16
@@ -122,8 +153,9 @@ func printDiff(previous matrix.Matrix, next matrix.Matrix, fb *gofbink.FBInk, fo
 							Top:  int16(i * ttSize),
 							Left: int16(j * ttWidth),
 						},
-						SizePx:      uint16(ttSize),
+						SizePx:      uint16(ttSize + (2 * next[i][j].Size)),
 						IsFormatted: false,
+						Style:       fontStyle,
 					}, &gofbink.FBInkConfig{IsInverted: next[i][j].IsInverted, NoRefresh: true})
 
 				} else {
