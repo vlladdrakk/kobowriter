@@ -17,6 +17,8 @@ func LaunchGemini(screen *screener.Screen, bus EventBus.Bus, url string, saveLoc
 	app, ok := gbrowser.LoadState(saveLocation)
 	stalledForInput := false
 
+	screen.SetFontType("truetype")
+
 	if !ok {
 		app = gbrowser.GeminiBrowser{
 			CurrentPage: gbrowser.Page{
@@ -134,6 +136,7 @@ func LaunchGemini(screen *screener.Screen, bus EventBus.Bus, url string, saveLoc
 			})
 		case "KEY_ESC":
 			app.SaveState()
+			screen.SetFontType("bitmap")
 			bus.Publish("ROUTING", "menu")
 		case "KEY_ENTER":
 			linkMap := app.CurrentPage.View.LinkMap

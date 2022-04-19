@@ -20,6 +20,8 @@ type Screen struct {
 	Height         int
 	fontType       string
 	ttSize         int
+	otherWidth     int
+	otherHeight    int
 }
 
 var dc = gg.NewContext(25, 40)
@@ -27,7 +29,7 @@ var charCache = map[string][]byte{}
 
 func InitScreen(fontScale uint8) (s *Screen) {
 	s = &Screen{}
-	s.fontType = "truetype"
+	s.fontType = "bitmap"
 
 	s.state = gofbink.FBInkState{}
 
@@ -42,45 +44,20 @@ func InitScreen(fontScale uint8) (s *Screen) {
 	s.fb.Init(&fbinkOpts)
 
 	// Setup fonts
-	s.fb.AddOTfont("/mnt/onboard/SourceCodePro-Regular.ttf", gofbink.FntRegular)
-	s.fb.AddOTfont("/mnt/onboard/SourceCodePro-Bold.ttf", gofbink.FntBold)
+	s.loadFonts(fontScale)
+
 	s.fb.GetState(&fbinkOpts, &s.state)
 
 	// clear screen on initialisation
 	s.ClearFlash()
 
-	if s.fontType == "truetype" {
-		switch fontScale {
-		case 1:
-			{
-				s.ttSize = 30
-			}
-		case 2:
-			{
-				s.ttSize = 40
-			}
-		case 3:
-			{
-				s.ttSize = 50
-			}
-		}
+	s.Width = int(s.state.MaxCols)
+	s.Height = int(s.state.MaxRows)
 
-		font, err := gg.LoadFontFace("/mnt/onboard/SourceCodePro-Regular.ttf", float64(s.ttSize))
-
-		if err != nil {
-			log.Panicf("Font load error: %v", err)
-		}
-
-		dc.SetFontFace(font)
-
-		w, h := dc.MeasureString("A")
-
-		s.Width = int(s.state.ScreenWidth) / int(w)
-		s.Height = int(s.state.ScreenHeight) / int(h)
-	} else {
-		s.Width = int(s.state.MaxCols)
-		s.Height = int(s.state.MaxRows)
-	}
+	// Set truetype height and width
+	w, h := dc.MeasureString("A")
+	s.otherWidth = int(s.state.ScreenWidth) / int(w)
+	s.otherHeight = int(s.state.ScreenHeight) / int(h)
 
 	s.presentMatrix = matrix.CreateNewMatrix(s.Width, s.Height)
 	s.originalMatrix = matrix.CreateNewMatrix(s.Width, s.Height)
@@ -88,7 +65,59 @@ func InitScreen(fontScale uint8) (s *Screen) {
 	println("Screen struct inited")
 
 	return
+}
 
+func (s *Screen) loadFonts(fontScale uint8) {
+	s.fb.AddOTfont("/mnt/onboard/SourceCodePro-Regular.ttf", gofbink.FntRegular)
+	s.fb.AddOTfont("/mnt/onboard/SourceCodePro-Bold.ttf", gofbink.FntBold)
+
+	s.ttSize = getTrueTypeSize(fontScale)
+
+	font, err := gg.LoadFontFace("/mnt/onboard/SourceCodePro-Regular.ttf", float64(s.ttSize))
+
+	if err != nil {
+		log.Panicf("Font load error: %v", err)
+	}
+
+	dc.SetFontFace(font)
+}
+
+func (s *Screen) SetFontType(fontType string) {
+	if s.fontType == fontType {
+		return
+	}
+
+	w := s.Width
+	h := s.Height
+
+	s.Width = s.otherWidth
+	s.Height = s.otherHeight
+
+	s.otherWidth = w
+	s.otherHeight = h
+
+	s.fontType = fontType
+
+	s.ClearFlash()
+}
+
+func getTrueTypeSize(fontScale uint8) int {
+	switch fontScale {
+	case 1:
+		{
+			return 20
+		}
+	case 2:
+		{
+			return 30
+		}
+	case 3:
+		{
+			return 40
+		}
+	}
+
+	return 30
 }
 
 func (s *Screen) ChangeFontScale(scale uint8) {
@@ -102,6 +131,8 @@ func (s *Screen) ChangeFontScale(scale uint8) {
 		Fontmult: scale,
 		Fontname: gofbink.Ctrld,
 	}
+
+	s.ttSize = getTrueTypeSize(scale)
 
 	s.fb.UpdateRestricted(&_opts, &opts)
 	// s.fb.ReInit(&_opts)
