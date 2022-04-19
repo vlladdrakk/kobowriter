@@ -229,3 +229,7 @@ func (s *GeminiBrowser) GetBookmarkOptions() []ui.SelectOption {
 func (s *GeminiBrowser) FindNextLink() int {
 	return s.CurrentPage.View.FindNextLink()
 }
+
+func (s *GeminiBrowser) FindPrevLink() int {
+	return s.CurrentPage.View.FindPrevLink()
+}

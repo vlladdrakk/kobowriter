@@ -226,3 +226,24 @@ func (t *HyperTextView) FindNextLink() int {
 
 	return -1
 }
+
+// Finds the next link and returns the line number.
+// Returns -1 if there is no link
+func (t *HyperTextView) FindPrevLink() int {
+	linkLines := make([]int, 0, len(t.LinkMap))
+	for k := range t.LinkMap {
+		linkLines = append(linkLines, k)
+	}
+
+	lastLine := 0
+	sort.Ints(linkLines)
+	for _, lineNum := range linkLines {
+		if lineNum >= t.CursorPos.Y {
+			return lastLine
+		} else {
+			lastLine = lineNum
+		}
+	}
+
+	return -1
+}

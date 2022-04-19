@@ -148,11 +148,16 @@ func LaunchGemini(screen *screener.Screen, bus EventBus.Bus, url string, saveLoc
 		case "KEY_F12":
 			screen.ClearFlash()
 		case "KEY_TAB":
-			nextLink := app.FindNextLink()
+			var nextLink int
+
+			if e.IsShift {
+				nextLink = app.FindPrevLink()
+			} else {
+				nextLink = app.FindNextLink()
+			}
 
 			if nextLink >= 0 {
 				text.SetCursorPos(Position{X: 0, Y: nextLink})
-				// bus.Publish("GEMINI:render")
 			}
 		case "g":
 			stalledForInput = true
