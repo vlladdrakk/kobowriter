@@ -1,12 +1,11 @@
 package views
 
 import (
-	"log"
 	"regexp"
 	"strings"
 
 	"github.com/asaskevich/EventBus"
-	gbrowser "github.com/olup/kobowriter/apps"
+	gbrowser "github.com/olup/kobowriter/apps/gbrowser"
 	"github.com/olup/kobowriter/event"
 	"github.com/olup/kobowriter/matrix"
 	"github.com/olup/kobowriter/screener"
@@ -141,7 +140,7 @@ func LaunchGemini(screen *screener.Screen, bus EventBus.Bus, url string, saveLoc
 		case "KEY_ENTER":
 			linkMap := app.CurrentPage.View.LinkMap
 			lineNumber := text.CursorPos.Y
-			log.Println("line number:", lineNumber, linkMap[lineNumber])
+
 			if _, ok := linkMap[lineNumber]; ok {
 				bus.Publish("GEMINI:handleLink", linkMap[lineNumber])
 			}

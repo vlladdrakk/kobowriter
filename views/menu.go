@@ -317,6 +317,12 @@ func AppMenu(screen *screener.Screen, bus EventBus.Bus, saveLocation string) fun
 				bus.Publish("ROUTING", "gemini")
 			},
 		},
+		{
+			label: "Calculator",
+			action: func() {
+				bus.Publish("ROUTING", "calculator")
+			},
+		},
 	}
 
 	return createMenu("Apps", options)(screen, bus)

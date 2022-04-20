@@ -10,6 +10,7 @@ import (
 
 	_ "embed"
 
+	calculator "github.com/olup/kobowriter/apps/calculator"
 	"github.com/olup/kobowriter/screener"
 	"github.com/olup/kobowriter/utils"
 	"github.com/olup/kobowriter/views"
@@ -93,6 +94,8 @@ func main() {
 			unmount = views.LaunchGemini(screen, bus, "gemini://gemini.circumlunar.space", saveLocation)
 		case "qr":
 			unmount = views.Qr(screen, bus, saveLocation)
+		case "calculator":
+			unmount = calculator.LaunchCalculator(screen, bus)
 
 		default:
 			unmount = views.Document(screen, bus, "")
