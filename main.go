@@ -106,7 +106,7 @@ func main() {
 			unmount = calculator.LaunchCalculator(screen, bus)
 
 		default:
-			unmount = views.Document(screen, bus, "")
+			unmount = views.MainMenu(screen, bus, saveLocation)
 		}
 
 	}, false)

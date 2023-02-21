@@ -3,7 +3,6 @@ package views
 import (
 	"fmt"
 	"os"
-	"os/exec"
 	"path"
 	"sort"
 	"strings"
@@ -35,6 +34,10 @@ func createMenu(title string, options []Option) func(screen *screener.Screen, bu
 
 			if e.KeyValue == "KEY_ENTER" {
 				options[selected].action()
+			}
+
+			if e.KeyValue == "KEY_ESC" {
+				bus.Publish("ROUTING", "menu")
 			}
 
 			line := 1
@@ -111,9 +114,8 @@ func MainMenu(screen *screener.Screen, bus EventBus.Bus, saveLocation string) fu
 			},
 		},
 		{
-			label: "Quit to XCSoar",
+			label: "Quit",
 			action: func() {
-				exec.Command("/opt/xcsoar/bin/KoboMenu").Start()
 				bus.Publish("QUIT")
 			},
 		},
@@ -311,6 +313,12 @@ func FontMenu(screen *screener.Screen, bus EventBus.Bus, saveLocation string) fu
 
 func AppMenu(screen *screener.Screen, bus EventBus.Bus, saveLocation string) func() {
 	options := []Option{
+		{
+			label: "Back",
+			action: func() {
+				bus.Publish("ROUTING", "menu")
+			},
+		},
 		{
 			label: "Gemini Browser",
 			action: func() {
