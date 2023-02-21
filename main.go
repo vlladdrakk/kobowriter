@@ -59,10 +59,6 @@ func main() {
 	// Touch event routine
 	go event.TouchEventLoop("/dev/input/event1", bus)
 
-	bus.SubscribeAsync("TOUCH_EVENT", func(event string) {
-		log.Printf("TOUCH_EVENT: %s", event)
-	}, false)
-
 	bus.SubscribeAsync("REQUIRE_KEYBOARD", func() {
 		config := utils.LoadConfig(saveLocation)
 		findKeyboard(screen, bus, config.KeyboardLang)

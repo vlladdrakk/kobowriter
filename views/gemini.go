@@ -1,7 +1,9 @@
 package views
 
 import (
+	"log"
 	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/asaskevich/EventBus"
@@ -199,6 +201,75 @@ func LaunchGemini(screen *screener.Screen, bus EventBus.Bus, url string, saveLoc
 	}
 
 	bus.SubscribeAsync("KEY", onEvent, false)
+
+	var initialTouch event.TouchEvent
+	var currentTouch event.TouchEvent
+	initialTouch.Init()
+	currentTouch.Init()
+
+	onTouch := func(eventString string) {
+		eventParts := strings.Split(eventString, ":")
+		posX, errX := strconv.Atoi(eventParts[0])
+
+		if errX != nil {
+			log.Fatal("Failed to parse X value from touch event")
+		}
+
+		posY, errY := strconv.Atoi(eventParts[1])
+
+		if errY != nil {
+			log.Fatal("Failed to parse Y value from touch event")
+		}
+
+		pressed, errPressed := strconv.Atoi(eventParts[2])
+
+		if errPressed != nil {
+			log.Fatal("Failed to parse PRESSED value from touch event")
+		}
+
+		if initialTouch.Pressed == event.Untouched {
+			log.Printf("Initial touch registered")
+			initialTouch.X = int32(posX)
+			initialTouch.Y = int32(posY)
+			initialTouch.Pressed = pressed
+		} else {
+			currentTouch.X = int32(posX)
+			currentTouch.Y = int32(posY)
+			currentTouch.Pressed = pressed
+		}
+
+		if currentTouch.Pressed == event.Released {
+			log.Println("Touch released")
+			if currentTouch.Y < initialTouch.Y {
+				// Scroll down
+				linesToMove := (int(initialTouch.Y) - int(currentTouch.Y)) / text.Height
+				log.Printf("Scrolling up %d lines (%d, %d)\n", linesToMove, initialTouch.Y, currentTouch.Y)
+				text.SetCursorPos(Position{
+					X: text.CursorPos.X,
+					Y: text.CursorPos.Y - linesToMove,
+				})
+			}
+
+			if currentTouch.Y > initialTouch.Y {
+				// Scroll up
+				linesToMove := (int(currentTouch.Y) - int(initialTouch.Y)) / text.Height
+				log.Printf("Scrolling down %d lines (%d, %d)\n", linesToMove, initialTouch.Y, currentTouch.Y)
+				text.SetCursorPos(Position{
+					X: text.CursorPos.X,
+					Y: text.CursorPos.Y + linesToMove,
+				})
+			}
+
+			// Reset the touch events
+			initialTouch.Init()
+			currentTouch.Init()
+
+			compiledMatrix := matrix.PasteMatrix(screen.GetOriginalMatrix(), text.RenderMatrix(), 2, 1)
+			screen.Print(compiledMatrix)
+		}
+	}
+
+	bus.SubscribeAsync("TOUCH_EVENT", onTouch, false)
 
 	// display
 	bus.Publish("KEY", event.KeyEvent{})
