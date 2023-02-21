@@ -2,6 +2,7 @@ package main
 
 import (
 	"log"
+	"os"
 	"os/exec"
 	"time"
 
@@ -40,6 +41,11 @@ func findKeyboard(screen *screener.Screen, bus EventBus.Bus, lang string) {
 
 	k, _ := keylogger.New(keyboard)
 	go event.BindKeyEvent(k, bus, lang)
-	bus.Publish("ROUTING", "document")
+	if len(os.Args) > 1 {
+		log.Println("Publishing", os.Args[1])
+		bus.Publish("ROUTING", os.Args[1])
+	} else {
+		bus.Publish("ROUTING", "document")
+	}
 	return
 }
