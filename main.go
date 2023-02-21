@@ -11,6 +11,7 @@ import (
 	_ "embed"
 
 	calculator "github.com/olup/kobowriter/apps/calculator"
+	"github.com/olup/kobowriter/event"
 	"github.com/olup/kobowriter/screener"
 	"github.com/olup/kobowriter/utils"
 	"github.com/olup/kobowriter/views"
@@ -23,7 +24,7 @@ func main() {
 	log.Println("Program started")
 
 	// kill all nickel related stuff. Will need a reboot to find back the usual
-	log.Println("Killing XCSoar programs ...")
+	log.Println("Killing Kobo programs ...")
 	exec.Command("killall", "-s", "SIGKILL", "KoboMenu").Run()
 	exec.Command("killall", "-s", "SIGKILL", "sickel").Run()
 	exec.Command("killall", "-s", "SIGKILL", "nickel").Run()
@@ -54,6 +55,13 @@ func main() {
 			c <- true
 		}
 	}()
+
+	// Touch event routine
+	go event.TouchEventLoop("/dev/input/event1", bus)
+
+	bus.SubscribeAsync("TOUCH_EVENT", func(event string) {
+		log.Printf("TOUCH_EVENT: %s", event)
+	}, false)
 
 	bus.SubscribeAsync("REQUIRE_KEYBOARD", func() {
 		config := utils.LoadConfig(saveLocation)
